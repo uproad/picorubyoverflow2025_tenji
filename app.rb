@@ -1,22 +1,26 @@
 require "pwm"
 require "adc"
 
+# 1ループのウェイト時間
+loop_sleep_time = 0.01
+
+# ウォッチドッグLED用設定
+# 1秒で1サイクル。これを変えると点滅スピードが変わる
+wd_res = 1.0 / loop_sleep_time
+wd_i = 0
+
 # アナログ入力のpeak to peakを取るためのサンプル保存数
 # 20あれば音声信号の山を数周分ぐらい取れてる
 # 20以上増やすとminmaxメソッドの処理時間が長すぎて動作ループが目視できてしまう
 # つまりこれが最適
 m=20
 
-# ウォッチドックLED用設定
-wd_cyc = 0
-wd_res = 5
-
 # アナログ入力値保存配列
 d26 = Array.new(m, 0)
 d27 = Array.new(m, 0)
 d28 = Array.new(m, 0)
 
-# ウォッチドックLED（基盤実装LED）
+# ウォッチドッグLED（基盤実装LED）
 l=GPIO.new(25,2)
 
 f=100000
@@ -111,23 +115,10 @@ loop do
     # print "   #{duty26.to_s[0..4]} #{duty27.to_s[0..4]} #{duty28.to_s[0..4]}"
     # puts
 
-    # ウォッチドックLEDの点滅
-    # 何らかのエラーで止まったらLEDが点滅しなくなる
-    # 変数wd_xxxとmとsleepの時間から1秒で1サイクルするように調整してある
-    # この変数を変えると点滅時間が変わる
-    if wd_cyc < wd_res/2
-      l.write(1) 
-    else
-      l.write(0)
-    end
-
     i = i+1
 
     if i >= m
       i=0
-
-      wd_cyc = wd_cyc + 1
-      wd_cyc = 0 if wd_cyc >= wd_res
 
       # ちょっとづつ過去の最大値を減衰させて曲ごと/メロ-サビ間の音量差を吸収する
       # だいたいこの調整で連続再生の切れ目でリセットされる
@@ -136,5 +127,18 @@ loop do
       m28 = m28 - 0.1 if m26 > 0.5
     end
 
-    sleep(0.01)
+    # ウォッチドッグLEDの点滅
+    # 何らかのエラーで止まったらLEDが点滅しなくなる
+    # 変数wd_resとsleepの時間から1秒で1サイクルするように調整してある
+    # wd_resの変数の値を変えると点滅時間が変わる
+    if wd_i < wd_res/2
+      l.write(1) 
+    else
+      l.write(0)
+    end
+
+    wd_i = wd_i + 1
+    wd_i = 0 if wd_i >= wd_res
+
+    sleep(loop_sleep_time)
 end
